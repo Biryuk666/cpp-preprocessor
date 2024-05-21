@@ -15,7 +15,85 @@ path operator""_p(const char* data, std::size_t sz) {
 }
 
 // напишите эту функцию
-bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories);
+bool Preprocess(ifstream& input, ofstream& output, const path& in_file, const vector<path>& include_directories) {
+    static regex dir_custom (R"/(\s*#\s*include\s*"([^"]*)"\s*)/");
+    static regex dir_standard (R"/(\s*#\s*include\s*<([^>]*)>\s*)/");
+    smatch m;
+    
+    
+    string str;
+    int string_number = 0;
+    
+    
+    while(getline(input, str)) {        
+        ++ string_number;
+        
+        path file_path;
+        bool is_find = true;
+        
+        if (regex_match(str, m, dir_custom)) {
+            file_path = in_file.parent_path() / string(m[1]);
+            
+             if (filesystem::exists(file_path)) {
+                ifstream new_input(file_path.string(), ios::in);
+                if (new_input.is_open()) {
+                    if (!Preprocess(new_input, output, file_path.string(), include_directories)) {
+                        return false;
+                    }
+                    continue;
+                } else {
+                    cout << "unknown include file "s << file_path.filename().string()
+                         << " at file " << in_file.string() << " at line "s << string_number << endl;
+                    return false;
+                }
+            } else {
+                is_find = false;
+            }
+        }
+        if (!is_find || regex_match(str, m, dir_standard)){
+            bool is_finded = false;
+            for (const auto& dir : include_directories) {
+                file_path = dir / string(m[1]);
+                if (filesystem::exists(file_path)) {
+                    ifstream new_input(file_path.string(), ios::in);
+                    if (new_input.is_open()) {
+                        if (!Preprocess(new_input, output, file_path.string(), include_directories)) {
+                            return false;
+                        }
+                        is_finded = true;
+                        break;
+                    }
+                    else {
+                        cout << "unknown include file "s << file_path.filename().string()
+                             << " at file " << in_file.string() << " at line "s << string_number << endl;
+                        return false;
+                    }
+                }
+            }
+            if (!is_finded) {
+                cout << "unknown include file "s << file_path.filename().string()
+                     << " at file " << in_file.string() << " at line "s << string_number << endl;
+                return false;
+            }
+            continue;
+        }
+        output << str << endl;
+    }
+    return true;
+}
+
+    
+bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories) {
+    if (!filesystem::exists(in_file)) {
+        return false;
+    }
+    ifstream input(in_file.string(), ios::in);
+    if (!input) {
+        return false;
+    }
+    ofstream output(out_file, ios::out);
+    return Preprocess(input, output, in_file, include_directories);
+}
 
 string GetFileContents(string file) {
     ifstream stream(file);
