@@ -1,6 +1,9 @@
 # vs code files
 **/.vscode
 
+# sources files
+**/sources
+
 # Prerequisites
 *.d
 
