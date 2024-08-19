@@ -14,10 +14,11 @@ path operator""_p(const char* data, std::size_t sz) {
     return path(data, data + sz);
 }
 
+static regex dir_custom (R"/(\s*#\s*include\s*"([^"]*)"\s*)/");
+static regex dir_standard (R"/(\s*#\s*include\s*<([^>]*)>\s*)/");
+
 // напишите эту функцию
 bool FindDirectory(ifstream& input, ofstream& output, const path& in_file, const vector<path>& include_directories) {
-    static regex dir_custom (R"/(\s*#\s*include\s*"([^"]*)"\s*)/");
-    static regex dir_standard (R"/(\s*#\s*include\s*<([^>]*)>\s*)/");
     smatch m;
 
     string str;
@@ -32,43 +33,31 @@ bool FindDirectory(ifstream& input, ofstream& output, const path& in_file, const
         if (regex_match(str, m, dir_custom)) {
             file_path = in_file.parent_path() / string(m[1]);
             
-             if (filesystem::exists(file_path)) {
+            ifstream new_input(file_path.string(), ios::in);
+            if (!new_input.is_open()) {
+                is_find = false;
+                
+            } else {
+                if (!FindDirectory(new_input, output, file_path.string(), include_directories)) {
+                    return false;
+                }
+                continue;
+            }
+        }
+        if (!is_find || regex_match(str, m, dir_standard)){
+            bool is_found = false;
+            for (const auto& dir : include_directories) {
+                file_path = dir / string(m[1]);
                 ifstream new_input(file_path.string(), ios::in);
                 if (new_input.is_open()) {
                     if (!FindDirectory(new_input, output, file_path.string(), include_directories)) {
                         return false;
                     }
-                    continue;
-                } else {
-                    cout << "unknown include file "s << file_path.filename().string()
-                         << " at file " << in_file.string() << " at line "s << string_number << endl;
-                    return false;
-                }
-            } else {
-                is_find = false;
-            }
-        }
-        if (!is_find || regex_match(str, m, dir_standard)){
-            bool is_finded = false;
-            for (const auto& dir : include_directories) {
-                file_path = dir / string(m[1]);
-                if (filesystem::exists(file_path)) {
-                    ifstream new_input(file_path.string(), ios::in);
-                    if (new_input.is_open()) {
-                        if (!FindDirectory(new_input, output, file_path.string(), include_directories)) {
-                            return false;
-                        }
-                        is_finded = true;
-                        break;
-                    }
-                    else {
-                        cout << "unknown include file "s << file_path.filename().string()
-                             << " at file " << in_file.string() << " at line "s << string_number << endl;
-                        return false;
-                    }
+                    is_found = true;
+                    break;
                 }
             }
-            if (!is_finded) {
+            if (!is_found) {
                 cout << "unknown include file "s << file_path.filename().string()
                      << " at file " << in_file.string() << " at line "s << string_number << endl;
                 return false;
